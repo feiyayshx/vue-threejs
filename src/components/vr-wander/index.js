@@ -1,7 +1,9 @@
 
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
+import CameraControls from 'camera-controls'
 
+CameraControls.install({ THREE: THREE })
 export class VRWander {
     /**
      * @desc: 配置项
@@ -45,9 +47,20 @@ export class VRWander {
         // 创建渲染器
         this._renderer = new THREE.WebGLRenderer({
             canvas: this._options.container,
-            antialias: true // 是否执行抗锯齿
+            antialias: true,// 是否执行抗锯齿
+            transparent: true,
         })
         this._resizeRendererToDisplaySize()
+
+        // 相机控制器
+        this._controls = new CameraControls(this._camera, this._renderer.domElement)
+
+        // 环境光
+        this._scene.add(new THREE.AmbientLight(0xffffff, 1));
+        // 平行光
+        const directionLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        directionLight.position.set(5, 5, 5);
+        this._scene.add(directionLight);
     }
     /**
    * 执行渲染及动画
