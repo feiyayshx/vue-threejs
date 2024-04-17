@@ -39,46 +39,46 @@ export class VRWander {
     _planeMesh = null;
 
     constructor(options) {
-        Object.assign(this._options, options)
+        this._options = Object.assign({}, options)
         this._size.width = this._options.container.clientWidth
         this._size.height = this._options.container.clientHeight
 
         this._init()
-        // this._lookat().then(() => {
-        //     // if (this._options.callback) {
-        //     //   this._options.callback();
-        //     // }
-        // });
+        this._initEvent()
         this._animate()
-        window.addEventListener("resize", this._resize.bind(this));
-        this._controls.addEventListener('change', () => {
-            // 浏览器控制台查看相机位置变化
-            console.log('camera.position', this._camera.position);
-        });
+
+        // window.addEventListener("resize", this._resize.bind(this));
+        // this._controls.addEventListener('change', () => {
+        //     // 浏览器控制台查看相机位置变化
+        //     console.log('camera.position', this._camera.position);
+        // });
     }
     /**
      * 初始化
      */
     _init() {
-        // 创建场景
-        this._scene = new THREE.Scene()
-        // 创建相机
-        const { width, height } = this._size
-        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
-        this._camera.position.set(10, 10, 10)
-        // this._camera.lookAt(0, 0, 0)
-        // 将相机添加到场景中
-        this._scene.add(this._camera)
         // 创建渲染器
         this._renderer = new THREE.WebGLRenderer({
             canvas: this._options.container,
-            // alpha: true,
             antialias: true,// 是否执行抗锯齿
-            transparent: true,
-            logarithmicDepthBuffer: true
+            // alpha: true,
+            // transparent: true,
+            // logarithmicDepthBuffer: true
         })
+
         this._resizeRendererToDisplaySize()
-        this._renderer.sortObjects = true
+        // this._renderer.sortObjects = true
+
+        // 创建场景
+        this._scene = new THREE.Scene()
+
+        // 创建相机
+        const { width, height } = this._size
+        console.log(this._size,'size')
+        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 10000)
+        this._camera.position.set(10,10,10)
+        // 将相机添加到场景中
+        this._scene.add(this._camera)
 
         // 环境光
         this._scene.add(new THREE.AmbientLight(0xffffff, 1));
@@ -88,11 +88,10 @@ export class VRWander {
         this._scene.add(directionLight);
 
         // 坐标轴辅助对象
-        const axesHelper = new THREE.AxesHelper(10)
-        this._scene.add(axesHelper)
+        this._scene.add(new THREE.AxesHelper(1000))
 
         // 相机控制器
-        this._controls = new CameraControls(this._camera, this._renderer.domElement)
+        this._controls = new CameraControls(this._camera, this._renderer.domElement);
         this._controls.update()
 
         // this._controls.maxDistance = this._EPS;
@@ -128,6 +127,10 @@ export class VRWander {
         }
 
         requestAnimationFrame(this._animate.bind(this));
+    }
+
+    _initEvent() {
+        const raycaster = new THREE.Raycaster()
     }
 
     async _lookat() {

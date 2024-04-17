@@ -4,7 +4,7 @@
 
 <script setup>
 import { onMounted } from "vue";
-import { VRWander } from "@/components/vr-wander";
+import { VRWander } from "@/components/vr-wander/index2";
 
 onMounted(() => {
   const vrWander = new VRWander({
@@ -16,8 +16,8 @@ onMounted(() => {
   });
 
   vrWander.loadHall({
-    url: "/models/village/scene.gltf",
-    position: { x: 0, y: 0, z: 0 },
+    url: "/models/room1/msg.gltf",
+    position: { x: 0, y: -1, z: 0 },
     scale: 1,
     onProgress: (p) => {
       console.log("加载进度", p);
@@ -25,13 +25,24 @@ onMounted(() => {
   }).then(gltf=>{
     console.log(gltf,'gltf')
   })
+
+  // vrWander.loadHall({
+  //   url: "/models/village/scene.gltf",
+  //   position: { x: 0, y: 0, z: 0 },
+  //   scale: 1,
+  //   onProgress: (p) => {
+  //     console.log("加载进度", p);
+  //   },
+  // }).then(gltf=>{
+  //   console.log(gltf,'gltf')
+  // })
 });
 </script>
-<style>
+<style type="css">
 #wanderContainer {
   width: 100%;
   height: 100%;
-  background:url('/bg-village.png') no-repeat center center;
-  background-size:100% 100%;
+  /* background:url('/bg-village.png') no-repeat center center;
+  background-size:100% 100%; */
 }
 </style>
