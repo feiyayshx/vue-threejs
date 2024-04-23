@@ -13,10 +13,12 @@ onMounted(() => {
       position: { x: 16.928, y: 2, z: 0.699 },
       lookAt: { x: 30.551, y: 2, z: 1.096 },
     },
+    movieHeight: 2
   });
 
   vrWander.loadHall({
     url: "/models/room1/msg.gltf",
+    planeName: "meishu01",
     position: { x: 0, y: -1, z: 0 },
     scale: 1,
     onProgress: (p) => {

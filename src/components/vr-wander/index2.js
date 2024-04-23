@@ -35,8 +35,9 @@ export class VRWander {
     // 展厅模型
     _hallMesh = null;
     // 展厅地板名称
-    _hallPlaneName = "plane";
+    _planeName = "plane";
     _planeMesh = null;
+    _eventMesh = []
 
     constructor(options) {
         this._options = Object.assign({}, options)
@@ -74,7 +75,6 @@ export class VRWander {
 
         // 创建相机
         const { width, height } = this._size
-        console.log(this._size,'size')
         this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 10000)
         this._camera.position.set(10,10,10)
         // 将相机添加到场景中
@@ -83,9 +83,9 @@ export class VRWander {
         // 环境光
         this._scene.add(new THREE.AmbientLight(0xffffff, 1));
         // 平行光
-        const directionLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        directionLight.position.set(5, 5, 5);
-        this._scene.add(directionLight);
+        // const directionLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        // directionLight.position.set(5, 5, 5);
+        // this._scene.add(directionLight);
 
         // 坐标轴辅助对象
         this._scene.add(new THREE.AxesHelper(1000))
@@ -94,7 +94,7 @@ export class VRWander {
         this._controls = new CameraControls(this._camera, this._renderer.domElement);
         this._controls.update()
 
-        // this._controls.maxDistance = this._EPS;
+        this._controls.maxDistance = this._EPS;
         // this._controls.minZoom = 0.5;
         // this._controls.maxZoom = 5;
         // this._controls.dragToOffset = false;
@@ -115,22 +115,32 @@ export class VRWander {
    * 执行渲染及动画
    */
     _animate() {
-        if (this._renderer) {
-            this._renderer.render(this._scene, this._camera);
-            this._controls.update()
-        }
-
-        if (this._animates) {
-            //   this._animates.forEach((afun) => {
-            //     afun(delta);
-            //   });
-        }
-
         requestAnimationFrame(this._animate.bind(this));
+        this._renderer.render(this._scene, this._camera);
+        this._controls.update()
     }
 
     _initEvent() {
         const raycaster = new THREE.Raycaster()
+        const pointer = new THREE.Vector2()
+        this._options.container.addEventListener('click', event => {
+            pointer.x = (event.clientX/window.innerWidth)*2-1
+            pointer.y = - (event.clientY/window.innerHeight)*2+1
+            raycaster.setFromCamera(pointer,this._camera)
+            const intersects = raycaster.intersectObjects(this._eventMesh)
+            let mesh = intersects[0]
+            if (mesh) {
+                console.log(mesh,'intersects')
+                const v3 = mesh.point
+                if(mesh.object.name === this._planeName) {
+                    console.log('点击了地板')
+                    // 点击地板移动
+                    console.log(this._options.movieHeight,'h')
+                    this._controls.moveTo(v3.x,v3.y,v3.z,false)
+                }
+            }
+        })
+        
     }
 
     async _lookat() {
@@ -160,30 +170,9 @@ export class VRWander {
      * @returns 
      */
     loadGLTF(params) {
+        const {url, onProgress } = params;
         return new Promise((resolve) => {
-            const {
-                url,
-                position,
-                scale = 1,
-                onProgress,
-            } = params;
             this._gltfLoader.load(url, (gltf) => {
-                const mesh = gltf.scene;
-                // const box = new THREE.Box3()
-                //     .setFromObject(mesh)
-                //     .getSize(new THREE.Vector3());
-                // console.log("box模型大小", url, box, mesh);
-
-                mesh.scale.set(scale, scale, scale);
-                if (position) {
-                    // mesh.position.y = position.y;
-                    // mesh.position.x = position.x;
-                    // mesh.position.z = position.z;
-                    mesh.position.set(position.x, position.y, position.z)
-                }
-
-                this._scene.add(mesh);
-
                 resolve(gltf);
             },
                 (progress) => {
@@ -198,16 +187,13 @@ export class VRWander {
         });
     }
     async loadHall(params) {
-        this._hallPlaneName = params.planeName;
-        return await this.loadGLTF({ ...params }).then((gltf) => {
-            this._hallMesh = gltf.scene;
-            gltf.scene.traverse((mesh) => {
-                if (mesh.name === params.planeName) {
-                    this._planeMesh = mesh;
-                }
-            });
-            return gltf;
-        });
+        this._planeName = params.planeName;
+        const { url, position,scale,onProgress} = params
+        const gltf = await this.loadGLTF({url, onProgress})
+        if(position) {
+            gltf.scene.position.set(position.x, position.y,position.z)
+        }
+        this._scene.add(gltf.scene)
     }
     /**
    * 重新设置大小
