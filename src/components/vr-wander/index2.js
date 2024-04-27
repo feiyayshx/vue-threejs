@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import CameraControls from 'camera-controls'
 // import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js'
+
 CameraControls.install({ THREE: THREE })
 export class VRWander {
     /**
@@ -11,6 +13,7 @@ export class VRWander {
     _options = {
         // 容器
         container: document.body,
+        maxSize: 10,
         // 相机配置
         cameraOption: {
             position: { x: 0, y: 2, z: 0 },
@@ -23,6 +26,9 @@ export class VRWander {
     _renderer = null // 渲染器
     _controls = null // 控制器
     _gltfLoader = new GLTFLoader() // gltf加载器
+    _textLoader = new THREE.TextureLoader()
+    _transformControls = null
+    _clock = new THREE.Clock()
 
     /* 默认容器大小 */
     _size = {
@@ -40,15 +46,17 @@ export class VRWander {
     _eventMesh = []
 
     constructor(options) {
-        this._options = Object.assign({}, options)
+        // this._options = Object.assign({}, options)
+        Object.assign(this._options, options)
         this._size.width = this._options.container.clientWidth
         this._size.height = this._options.container.clientHeight
 
         this._init()
-        this._initEvent()
+        // this._initTransformControls()
         this._animate()
+        this._initEvent()
 
-        // window.addEventListener("resize", this._resize.bind(this));
+        window.addEventListener("resize", this._resize.bind(this));
         // this._controls.addEventListener('change', () => {
         //     // 浏览器控制台查看相机位置变化
         //     console.log('camera.position', this._camera.position);
@@ -75,8 +83,9 @@ export class VRWander {
 
         // 创建相机
         const { width, height } = this._size
-        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 10000)
-        this._camera.position.set(10,10,10)
+        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
+        this._camera.position.set(10, 10, 10)
+
         // 将相机添加到场景中
         this._scene.add(this._camera)
 
@@ -88,89 +97,94 @@ export class VRWander {
         // this._scene.add(directionLight);
 
         // 坐标轴辅助对象
-        this._scene.add(new THREE.AxesHelper(1000))
+        this._scene.add(new THREE.AxesHelper(100))
 
         // 相机控制器
         this._controls = new CameraControls(this._camera, this._renderer.domElement);
-        this._controls.update()
+        // this._controls.update()
 
-        this._controls.maxDistance = this._EPS;
-        // this._controls.minZoom = 0.5;
-        // this._controls.maxZoom = 5;
-        // this._controls.dragToOffset = false;
-        // this._controls.distance = 1;
-        // this._controls.dampingFactor = 0.01; // 阻尼运动
-        // this._controls.truckSpeed = 0.01; // 拖动速度
-        // this._controls.mouseButtons.wheel = CameraControls.ACTION.ZOOM;
-        // this._controls.mouseButtons.right = CameraControls.ACTION.NONE;
-        // this._controls.touches.two = CameraControls.ACTION.TOUCH_ZOOM;
-        // this._controls.touches.three = CameraControls.ACTION.NONE;
+        const gridHelper = new THREE.GridHelper(50, 50);
+        gridHelper.position.y = - 1;
+        this._scene.add(gridHelper);
 
-        // // 逆向控制
-        // this._controls.azimuthRotateSpeed = -0.5; // 方位角旋转速度。
-        // this._controls.polarRotateSpeed = -0.5; // 极旋转的速度。
-        // this._controls.saveState();
+        // this._renderer.render(this._scene, this._camera)
+
     }
     /**
    * 执行渲染及动画
    */
     _animate() {
-        requestAnimationFrame(this._animate.bind(this));
+        const delta = this._clock.getDelta();
+        this._controls.update(delta);
         this._renderer.render(this._scene, this._camera);
-        this._controls.update()
+        requestAnimationFrame(this._animate.bind(this));
+    }
+    _initTransformControls() {
+        this._transformControls = new TransformControls(this._camera, this._renderer.domElement)
+        this._transformControls.setSpace("local"); // 本地坐标
+        this._scene.add(this._transformControls)
+
+        this._transformControls.addEventListener('dragging-changed', event => {
+            console.log(event, 'dragging')
+            // this._camera.enabled = !event.value
+        })
+
+        // 鼠标按下, 停止相机控制器
+        this._transformControls.addEventListener("mouseDown", () => {
+            this._controls.enabled = false;
+        });
+
+        // 鼠标放开，恢复相机控制器
+        this._transformControls.addEventListener("mouseUp", () => {
+            this._controls.enabled = true;
+        });
+
+        // 变换控制改变时打印位置信息
+        this._transformControls.addEventListener("objectChange", () => {
+            const { position, scale, rotation } = this._transformControls.object;
+            console.log(
+                `position:{x:${position.x},y:${position.y},z:${position.z}},scale:{x:${scale.x},y:${scale.y},z:${scale.z}},rotation:{x:${rotation.x},y:${rotation.y},z:${rotation.z}}`
+            );
+        });
     }
 
     _initEvent() {
         const raycaster = new THREE.Raycaster()
         const pointer = new THREE.Vector2()
         this._options.container.addEventListener('click', event => {
-            pointer.x = (event.clientX/window.innerWidth)*2-1
-            pointer.y = - (event.clientY/window.innerHeight)*2+1
-            raycaster.setFromCamera(pointer,this._camera)
-            const intersects = raycaster.intersectObjects(this._eventMesh)
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1
+            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
+            raycaster.setFromCamera(pointer, this._camera)
+            const intersects = raycaster.intersectObjects([...this._eventMesh])
             let mesh = intersects[0]
             if (mesh) {
-                console.log(mesh,'intersects')
                 const v3 = mesh.point
-                if(mesh.object.name === this._planeName) {
-                    console.log('点击了地板')
+                if (mesh.object.name === this._planeName) {
+                    console.log(v3, '点击了地板')
                     // 点击地板移动
-                    console.log(this._options.movieHeight,'h')
-                    this._controls.moveTo(v3.x,v3.y,v3.z,false)
+                    this._controls.moveTo(v3.x, v3.y, v3.z, true)
                 }
             }
+            if (mesh?.object.originData) {
+                console.log(mesh, '点击了画板')
+                this._transformControls.attach(mesh.object)
+
+            }
+            // if (mesh?.object.type === 'GridHelper') {
+            //     const v3 = mesh.point
+            //     this._controls.moveTo(v3.x, v3.y, v3.z, true)
+            // }
         })
-        
+
     }
 
-    async _lookat() {
-        if (!this._options.cameraOption) {
-            return;
-        }
-        const { position, lookAt } = this._options.cameraOption;
-        const lookatV3 = new THREE.Vector3(position.x, position.y, position.z);
-        lookatV3.lerp(new THREE.Vector3(lookAt.x, lookAt.y, lookAt.z), this._EPS);
-        this._controls.zoomTo(0.8);
-        // this._controls.setTatget(-2, 1, 0)
-        // this._controls.update()
-        await this._controls.setLookAt(
-            position.x,
-            position.y,
-            position.z,
-            lookatV3.x,
-            lookatV3.y,
-            lookatV3.z,
-            false
-        );
-        // this._controls.update()
-    }
     /**
      * @desc gltf加载器
      * @param {*} params 
      * @returns 
      */
     loadGLTF(params) {
-        const {url, onProgress } = params;
+        const { url, onProgress } = params;
         return new Promise((resolve) => {
             this._gltfLoader.load(url, (gltf) => {
                 resolve(gltf);
@@ -188,13 +202,45 @@ export class VRWander {
     }
     async loadHall(params) {
         this._planeName = params.planeName;
-        const { url, position,scale,onProgress} = params
-        const gltf = await this.loadGLTF({url, onProgress})
-        if(position) {
-            gltf.scene.position.set(position.x, position.y,position.z)
+        const { url, position, scale, onProgress } = params
+        const gltf = await this.loadGLTF({ url, onProgress })
+        if (position) {
+            gltf.scene.position.set(position.x, position.y, position.z)
+        }
+        if (scale) {
+            gltf.scene.scale.set(scale, scale, scale)
         }
         this._scene.add(gltf.scene)
+        this._eventMesh.push(gltf.scene)
+        return gltf
     }
+
+    loadImages(items) {
+        const { maxSize } = this._options
+        items.forEach(async (item) => {
+            let texture = await this._textLoader.loadAsync(item.url)
+            if (texture.image.width > maxSize) {
+                item.width = maxSize;
+                item.height = (maxSize / texture.image.width) * texture.image.height;
+            } else {
+                item.height = maxSize;
+                item.width = (maxSize / texture.image.height) * texture.image.width;
+            }
+
+            const geometry = new THREE.BoxGeometry(item.width, item.height, 0.05)
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+            let materialTexture = new THREE.MeshBasicMaterial({ map: texture })
+            const mesh = new THREE.Mesh(geometry, [material, material, material, material, materialTexture, material])
+            mesh.name = item.name;
+            // mesh.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
+            mesh.scale.set(item.scale.x, item.scale.y, item.scale.z);
+            mesh.position.set(item.position.x, item.position.y, item.position.z);
+            mesh.originData = item
+            this._scene.add(mesh)
+            this._eventMesh.push(mesh)
+        })
+    }
+
     /**
    * 重新设置大小
    */
@@ -205,6 +251,7 @@ export class VRWander {
             this._camera.aspect = this._size.width / this._size.height
             this._camera.updateProjectionMatrix()
         }
+        this._renderer.render(this._scene, this._camera)
     }
     /**
      * @desc 设置渲染器内部尺寸大小
