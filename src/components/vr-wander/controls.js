@@ -74,7 +74,7 @@ export class VRWander {
         this._resizeRendererToDisplaySize()
 
         // 环境光
-        // this._scene.add(new THREE.AmbientLight(0xffffff, 1));
+        this._scene.add(new THREE.AmbientLight(0xffffff, 1));
 
         // 坐标轴辅助对象
         const axesHelper = new THREE.AxesHelper(10)

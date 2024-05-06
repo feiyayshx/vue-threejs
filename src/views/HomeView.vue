@@ -4,12 +4,13 @@
 
 <script setup>
 import { onMounted } from "vue";
-import { VRWander } from "@/components/vr-wander/index2";
+import { VRWander } from "@/components/vr-wander/index";
 
 onMounted(() => {
 
   const vrWander = new VRWander({
     container: document.getElementById("wanderContainer"),
+    debugger: true,
     maxSize: 2,
     cameraOption: {
       position: { x: 16.928, y: 2, z: 0.699 },
@@ -54,6 +55,7 @@ onMounted(() => {
     }
   ])
 });
+
 </script>
 <style type="css">
 #wanderContainer {

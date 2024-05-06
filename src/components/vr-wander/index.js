@@ -2,7 +2,6 @@
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import CameraControls from 'camera-controls'
-// import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
 
 CameraControls.install({ THREE: THREE })
@@ -13,6 +12,7 @@ export class VRWander {
     _options = {
         // 容器
         container: document.body,
+        debugger: true, // 开启调试模式
         maxSize: 10,
         // 相机配置
         cameraOption: {
@@ -24,17 +24,21 @@ export class VRWander {
     _scene = null // 场景
     _camera = null // 相机
     _renderer = null // 渲染器
-    _controls = null // 控制器
+    _controls = null // 相机控制器
     _gltfLoader = new GLTFLoader() // gltf加载器
-    _textLoader = new THREE.TextureLoader()
-    _transformControls = null
+    _textLoader = new THREE.TextureLoader()  // 纹理加载
+    _transformControls = null  // 变换控制器
     _clock = new THREE.Clock()
+    _raycaster = new THREE.Raycaster(); // 光线投射
 
     /* 默认容器大小 */
     _size = {
         width: window.innerWidth,
         height: window.innerHeight
     }
+    // 可点击事件元素
+    _eventMesh = []
+    _events = {}
 
     // 相机和视点的距离
     _EPS = 1e-5;
@@ -42,17 +46,23 @@ export class VRWander {
     _hallMesh = null;
     // 展厅地板名称
     _planeName = "plane";
-    _planeMesh = null;
-    _eventMesh = []
 
     constructor(options) {
-        // this._options = Object.assign({}, options)
         Object.assign(this._options, options)
         this._size.width = this._options.container.clientWidth
         this._size.height = this._options.container.clientHeight
 
         this._init()
-        // this._initTransformControls()
+        if (this._options.debugger) {
+            // 变换控制器
+            this._initTransformControls()
+            // 坐标轴辅助对象
+            this._scene.add(new THREE.AxesHelper(100))
+            // 网格对象
+            const gridHelper = new THREE.GridHelper(50, 50);
+            gridHelper.position.y = - 1;
+            this._scene.add(gridHelper);
+        }
         this._animate()
         this._initEvent()
 
@@ -66,6 +76,16 @@ export class VRWander {
      * 初始化
      */
     _init() {
+        // 创建场景
+        this._scene = new THREE.Scene()
+
+        // 创建相机
+        const { width, height } = this._size
+        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
+        this._camera.position.set(10, 10, 10)
+        // 将相机添加到场景中
+        this._scene.add(this._camera)
+
         // 创建渲染器
         this._renderer = new THREE.WebGLRenderer({
             canvas: this._options.container,
@@ -76,39 +96,32 @@ export class VRWander {
         })
 
         this._resizeRendererToDisplaySize()
-        // this._renderer.sortObjects = true
-
-        // 创建场景
-        this._scene = new THREE.Scene()
-
-        // 创建相机
-        const { width, height } = this._size
-        this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
-        this._camera.position.set(10, 10, 10)
-
-        // 将相机添加到场景中
-        this._scene.add(this._camera)
 
         // 环境光
         this._scene.add(new THREE.AmbientLight(0xffffff, 1));
         // 平行光
-        // const directionLight = new THREE.DirectionalLight(0xffffff, 0.7);
-        // directionLight.position.set(5, 5, 5);
-        // this._scene.add(directionLight);
-
-        // 坐标轴辅助对象
-        this._scene.add(new THREE.AxesHelper(100))
+        const directionLight = new THREE.DirectionalLight(0xffffff, 0.7);
+        directionLight.position.set(5, 5, 5);
+        this._scene.add(directionLight);
 
         // 相机控制器
         this._controls = new CameraControls(this._camera, this._renderer.domElement);
-        // this._controls.update()
+        // this._controls.maxDistance = this._EPS;
+        this._controls.minZoom = 0.5;
+        this._controls.maxZoom = 5;
+        // this._controls.dragToOffset = false;
+        // this._controls.distance = 1;
+        // this._controls.dampingFactor = 0.01; // 阻尼运动
+        // this._controls.truckSpeed = 0.01; // 拖动速度
+        // this._controls.mouseButtons.wheel = CameraControls.ACTION.ZOOM;
+        // this._controls.mouseButtons.right = CameraControls.ACTION.NONE;
+        // this._controls.touches.two = CameraControls.ACTION.TOUCH_ZOOM;
+        // this._controls.touches.three = CameraControls.ACTION.NONE;
 
-        const gridHelper = new THREE.GridHelper(50, 50);
-        gridHelper.position.y = - 1;
-        this._scene.add(gridHelper);
-
-        // this._renderer.render(this._scene, this._camera)
-
+        // 逆向控制
+        // this._controls.azimuthRotateSpeed = -0.5; // 方位角旋转速度。
+        // this._controls.polarRotateSpeed = -0.5; // 极旋转的速度。
+        // this._controls.saveState();
     }
     /**
    * 执行渲染及动画
@@ -139,6 +152,31 @@ export class VRWander {
             this._controls.enabled = true;
         });
 
+        window.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 't':
+                    this._transformControls.setMode('translate')
+                    break;
+                case 'r':
+                    this._transformControls.setMode('rotate')
+                    break;
+                case 's':
+                    this._transformControls.setMode('scale')
+                    break
+                case '+':
+                    this._transformControls.setSize(this._transformControls.size + 0.1);
+                    break;
+
+                case '-':
+                case '_':
+                    this._transformControls.setSize(Math.max(this._transformControls.size - 0.1, 0.1));
+                    break;
+                case 'Escape':
+                    this._transformControls.reset();
+                    break;
+            }
+        })
+
         // 变换控制改变时打印位置信息
         this._transformControls.addEventListener("objectChange", () => {
             const { position, scale, rotation } = this._transformControls.object;
@@ -149,14 +187,25 @@ export class VRWander {
     }
 
     _initEvent() {
-        const raycaster = new THREE.Raycaster()
         const pointer = new THREE.Vector2()
-        this._options.container.addEventListener('click', event => {
+
+        this._options.container.addEventListener('mousedown', (e) => {
+            this._events.startPos = { x: e.clientX, y: e.clientY }
+        })
+
+        this._options.container.addEventListener('mouseup', (event) => {
+            const { x, y } = this._events.startPos
+            const diff = 3
+            if (Math.abs(event.clientX - x) > diff || Math.abs(event.clientY - y) > diff) return
+
+            console.log(this._options.container.left, 'container')
+
             pointer.x = (event.clientX / window.innerWidth) * 2 - 1
             pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
-            raycaster.setFromCamera(pointer, this._camera)
-            const intersects = raycaster.intersectObjects([...this._eventMesh])
+            this._raycaster.setFromCamera(pointer, this._camera)
+            const intersects = this._raycaster.intersectObjects([...this._eventMesh])
             let mesh = intersects[0]
+            console.log(mesh, 'click mesh0')
             if (mesh) {
                 const v3 = mesh.point
                 if (mesh.object.name === this._planeName) {
@@ -174,6 +223,7 @@ export class VRWander {
             //     const v3 = mesh.point
             //     this._controls.moveTo(v3.x, v3.y, v3.z, true)
             // }
+
         })
 
     }
@@ -210,6 +260,25 @@ export class VRWander {
         if (scale) {
             gltf.scene.scale.set(scale, scale, scale)
         }
+        console.log(gltf.scene, 'gltf.scene')
+        gltf.scene.traverse((child) => {
+            console.log(child, 'child')
+            // if (child.isMesh && child.name === 'meishu15') {
+            //     this._textLoader.load('/models/images/wall.jpg', (texture) => {
+            //         console.log(texture, 'texture')
+            //         // child.material.color.set(0xffffff);
+            //         // child.material.map = texture;
+
+            //         // child.material = new THREE.MeshBasicMaterial({
+            //         //     color: 0xffffff,
+            //         //     envMap: texture,
+            //         //     depthFunc: 3,
+            //         //     reflectivity: 0,
+            //         // })
+            //         // child.material.needsUpdate = true;
+            //     })
+            // }
+        })
         this._scene.add(gltf.scene)
         this._eventMesh.push(gltf.scene)
         return gltf
