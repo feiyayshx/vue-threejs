@@ -5,6 +5,7 @@
 <script setup>
 import { onMounted } from "vue";
 import { VRWander } from "@/components/vr-wander/index";
+import { dataImages } from "./data";
 
 onMounted(() => {
 
@@ -12,9 +13,10 @@ onMounted(() => {
     container: document.getElementById("wanderContainer"),
     debugger: true,
     maxSize: 2,
+    movieHight:2,
     cameraOption: {
-      position: { x: 16.928, y: 2, z: 0.699 },
-      lookAt: { x: 30.551, y: 2, z: 1.096 },
+      position: { x: 6.928, y: 2, z: 0.699 },
+      lookAt: { x:-0.028, y:1, z:0 },
     },
   });
 
@@ -30,30 +32,7 @@ onMounted(() => {
     console.log(gltf,'gltf')
   })
 
-  vrWander.loadImages([
-    {
-      id: "1",
-      url: "/models/images/s1.jpg",
-      name: "宫崎骏AI",
-      desc: "宫崎骏AI绘画",
-      scale: { x: 0.8, y: 0.8, z: 0.8 },
-      position: { x: -2.64, y: 1.29, z:-2.9 },
-      view: { x: 24.011, y: 2.1, z: 4.379 },
-      rotation: { x: 0, y: 0, z: 0 },
-      type: "picture",
-    },
-    {
-      id: "2",
-      url: "/models/images/c1.jpg",
-      name: "猫人",
-      desc: "信息描述",
-      scale: { x: 0.8, y: 0.8, z: 0.8 },
-      position: { x: 0, y: 1, z:0},
-      view: { x: 24.011, y: 2.1, z: 4.379 },
-      rotation: { x: 0, y: 0, z: 0 },
-      type: "picture",
-    }
-  ])
+  vrWander.loadImages(dataImages)
 });
 
 </script>

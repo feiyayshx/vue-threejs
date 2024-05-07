@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import CameraControls from 'camera-controls'
 import { TransformControls } from 'three/addons/controls/TransformControls.js'
+import offset from "offset"
 
 CameraControls.install({ THREE: THREE })
 export class VRWander {
@@ -53,6 +54,7 @@ export class VRWander {
         this._size.height = this._options.container.clientHeight
 
         this._init()
+        this._lookat()
         if (this._options.debugger) {
             // 变换控制器
             this._initTransformControls()
@@ -82,7 +84,7 @@ export class VRWander {
         // 创建相机
         const { width, height } = this._size
         this._camera = new THREE.PerspectiveCamera(70, width / height, 0.1, 1000)
-        this._camera.position.set(10, 10, 10)
+        // this._camera.position.set(10, 10, 10)
         // 将相机添加到场景中
         this._scene.add(this._camera)
 
@@ -106,22 +108,36 @@ export class VRWander {
 
         // 相机控制器
         this._controls = new CameraControls(this._camera, this._renderer.domElement);
-        // this._controls.maxDistance = this._EPS;
+        this._controls.maxDistance = this._EPS;
         this._controls.minZoom = 0.5;
         this._controls.maxZoom = 5;
         // this._controls.dragToOffset = false;
-        // this._controls.distance = 1;
-        // this._controls.dampingFactor = 0.01; // 阻尼运动
-        // this._controls.truckSpeed = 0.01; // 拖动速度
-        // this._controls.mouseButtons.wheel = CameraControls.ACTION.ZOOM;
-        // this._controls.mouseButtons.right = CameraControls.ACTION.NONE;
-        // this._controls.touches.two = CameraControls.ACTION.TOUCH_ZOOM;
-        // this._controls.touches.three = CameraControls.ACTION.NONE;
+        this._controls.distance = 1;
+        this._controls.dampingFactor = 0.01; // 阻尼运动
+        this._controls.truckSpeed = 0.01; // 拖动速度
+        this._controls.mouseButtons.wheel = CameraControls.ACTION.ZOOM;
 
-        // 逆向控制
-        // this._controls.azimuthRotateSpeed = -0.5; // 方位角旋转速度。
-        // this._controls.polarRotateSpeed = -0.5; // 极旋转的速度。
-        // this._controls.saveState();
+        this._controls.azimuthRotateSpeed = -0.5; // 方位角旋转速度。
+        this._controls.polarRotateSpeed = -0.5; // 极旋转的速度。
+        this._controls.saveState();
+    }
+    async _lookat() {
+        if (!this._options.cameraOption) {
+            return;
+        }
+        const { position, lookAt } = this._options.cameraOption;
+        const lookatV3 = new THREE.Vector3(position.x, position.y, position.z);
+        lookatV3.lerp(new THREE.Vector3(lookAt.x, lookAt.y, lookAt.z), this._EPS);
+        this._controls.zoomTo(0.8);
+        await this._controls.setLookAt(
+            position.x,
+            position.y,
+            position.z,
+            lookatV3.x,
+            lookatV3.y,
+            lookatV3.z,
+            false
+        );
     }
     /**
    * 执行渲染及动画
@@ -180,15 +196,90 @@ export class VRWander {
         // 变换控制改变时打印位置信息
         this._transformControls.addEventListener("objectChange", () => {
             const { position, scale, rotation } = this._transformControls.object;
+            console.log(this._transformControls.object, 'obj')
             console.log(
                 `position:{x:${position.x},y:${position.y},z:${position.z}},scale:{x:${scale.x},y:${scale.y},z:${scale.z}},rotation:{x:${rotation.x},y:${rotation.y},z:${rotation.z}}`
             );
         });
     }
+    _findParentOdata(mesh) {
+        if (mesh.odata) {
+            console.log(mesh);
+            return mesh;
+        } else {
+            if (mesh.parent) {
+                return this._findParentOdata.bind(this)(mesh.parent);
+            } else {
+                return null;
+            }
+        }
+    }
+    _getBoxRaycaster({ x, y }) {
+        // 射线计算
+        const container = this._options.container;
+        this._mouse = new THREE.Vector2();
+        this._mouse.set(
+            (x / container.clientWidth) * 2 - 1,
+            -(y / container.clientHeight) * 2 + 1
+        );
+        this._raycaster.setFromCamera(this._mouse, this._camera);
+        const intersects = this._raycaster.intersectObjects(
+            [...this._eventMesh],
+            true
+        );
+        const intersect = intersects[0];
+        if (intersect) {
+            const v3 = intersects[0].point;
+            const lookat = this._camera.position.lerp(v3, 1 + this._EPS);
+            // 点击元素
+            const mesh = intersect.object;
+
+            // 因为被点击的元素可能是子元素，所以要溯源，找到父元素的odata
+            const odataMesh = this._findParentOdata(mesh);
+
+            // 如果点击的是画框，初始化控制器
+            if (this._options.debugger && odataMesh && this._transformControls) {
+                this._transformControls.attach(odataMesh);
+            }
+
+            // 元素点击事件
+            if (odataMesh && this._options.onClick) {
+                this._options.onClick(odataMesh.odata);
+            }
+
+            return { position: v3, lookat, mesh };
+        } else {
+            console.log("empty");
+        }
+
+        return false;
+    }
+    _moveTo(position, lookat) {
+        this._controls.saveState();
+        const lookatV3 = new THREE.Vector3(position.x, position.y, position.z);
+        lookatV3.lerp(new THREE.Vector3(lookat.x, lookat.y, lookat.z), this._EPS);
+
+        // 获取当前的lookAt参数
+        const fromPosition = new THREE.Vector3();
+        const fromLookAt = new THREE.Vector3();
+        this._controls.getPosition(fromPosition);
+        this._controls.getTarget(fromLookAt);
+
+        const lookatV32 = new THREE.Vector3(position.x, position.y, position.z);
+        lookatV32.lerp(new THREE.Vector3(lookat.x, lookat.y, lookat.z), this._EPS);
+
+        this._controls.setLookAt(
+            position.x,
+            position.y,
+            position.z,
+            lookatV3.x,
+            lookatV3.y,
+            lookatV3.z,
+            true
+        );
+    }
 
     _initEvent() {
-        const pointer = new THREE.Vector2()
-
         this._options.container.addEventListener('mousedown', (e) => {
             this._events.startPos = { x: e.clientX, y: e.clientY }
         })
@@ -197,31 +288,52 @@ export class VRWander {
             const { x, y } = this._events.startPos
             const diff = 3
             if (Math.abs(event.clientX - x) > diff || Math.abs(event.clientY - y) > diff) return
+            const { top, left } = offset(this._options.container);
 
-            console.log(this._options.container.left, 'container')
+            const rayRes = this._getBoxRaycaster(
+                {
+                    x: event.clientX - left,
+                    y: event.clientY - top,
+                }
+            );
 
-            pointer.x = (event.clientX / window.innerWidth) * 2 - 1
-            pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
-            this._raycaster.setFromCamera(pointer, this._camera)
-            const intersects = this._raycaster.intersectObjects([...this._eventMesh])
-            let mesh = intersects[0]
-            console.log(mesh, 'click mesh0')
-            if (mesh) {
-                const v3 = mesh.point
-                if (mesh.object.name === this._planeName) {
-                    console.log(v3, '点击了地板')
-                    // 点击地板移动
-                    this._controls.moveTo(v3.x, v3.y, v3.z, true)
+            if (rayRes) {
+                const { position, lookat, mesh } = rayRes;
+                console.log(mesh, 'mesh')
+                // 点击地面移动
+                // console.log("rayRes", mesh, rayRes, position, {
+                //     x: event.clientX - left,
+                //     y: event.clientY - top,
+                // });
+                if (mesh.name === this._planeName) {
+                    // 移动
+                    this._moveTo(
+                        { x: position.x, y: this._options.movieHight, z: position.z },
+                        { x: lookat.x, y: this._options.movieHight, z: lookat.z },
+                        3
+                    );
                 }
             }
-            if (mesh?.object.originData) {
-                console.log(mesh, '点击了画板')
-                this._transformControls.attach(mesh.object)
 
-            }
-            // if (mesh?.object.type === 'GridHelper') {
+
+            // pointer.x = (event.clientX / window.innerWidth) * 2 - 1
+            // pointer.y = - (event.clientY / window.innerHeight) * 2 + 1
+            // this._raycaster.setFromCamera(pointer, this._camera)
+            // const intersects = this._raycaster.intersectObjects([...this._eventMesh])
+            // let mesh = intersects[0]
+            // console.log(mesh, 'click mesh0')
+            // if (mesh) {
             //     const v3 = mesh.point
-            //     this._controls.moveTo(v3.x, v3.y, v3.z, true)
+            //     if (mesh.object.name === this._planeName) {
+            //         console.log(v3, '点击了地板')
+            //         // 点击地板移动
+            //         // this._controls.moveTo(v3.x, v3.y, v3.z, true)
+            //     }
+            // }
+            // if (mesh?.object.originData) {
+            //     console.log(mesh, '点击了画板')
+            //     this._transformControls.attach(mesh.object)
+
             // }
 
         })
@@ -237,6 +349,10 @@ export class VRWander {
         const { url, onProgress } = params;
         return new Promise((resolve) => {
             this._gltfLoader.load(url, (gltf) => {
+                const mesh = gltf.scene
+                const box = new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3())
+                console.log(box, 'box')
+                console.log(mesh, 'mesh')
                 resolve(gltf);
             },
                 (progress) => {
@@ -252,35 +368,38 @@ export class VRWander {
     }
     async loadHall(params) {
         this._planeName = params.planeName;
-        const { url, position, scale, onProgress } = params
+        const { url, position, scale, rotation, onProgress } = params
         const gltf = await this.loadGLTF({ url, onProgress })
+        const mesh = gltf.scene
         if (position) {
-            gltf.scene.position.set(position.x, position.y, position.z)
+            mesh.position.set(position.x, position.y, position.z)
         }
         if (scale) {
-            gltf.scene.scale.set(scale, scale, scale)
+            mesh.scale.set(scale, scale, scale)
         }
-        console.log(gltf.scene, 'gltf.scene')
-        gltf.scene.traverse((child) => {
-            console.log(child, 'child')
-            // if (child.isMesh && child.name === 'meishu15') {
-            //     this._textLoader.load('/models/images/wall.jpg', (texture) => {
-            //         console.log(texture, 'texture')
-            //         // child.material.color.set(0xffffff);
-            //         // child.material.map = texture;
+        if (rotation) {
+            mesh.rotation.set(rotation.x, rotation.y, rotation.z)
+        }
+        // gltf.scene.traverse((child) => {
+        //     // console.log(child, 'child')
+        //     // if (child.isMesh && child.name === 'meishu15') {
+        //     //     this._textLoader.load('/models/images/wall.jpg', (texture) => {
+        //     //         console.log(texture, 'texture')
+        //     //         // child.material.color.set(0xffffff);
+        //     //         // child.material.map = texture;
 
-            //         // child.material = new THREE.MeshBasicMaterial({
-            //         //     color: 0xffffff,
-            //         //     envMap: texture,
-            //         //     depthFunc: 3,
-            //         //     reflectivity: 0,
-            //         // })
-            //         // child.material.needsUpdate = true;
-            //     })
-            // }
-        })
-        this._scene.add(gltf.scene)
-        this._eventMesh.push(gltf.scene)
+        //     //         // child.material = new THREE.MeshBasicMaterial({
+        //     //         //     color: 0xffffff,
+        //     //         //     envMap: texture,
+        //     //         //     depthFunc: 3,
+        //     //         //     reflectivity: 0,
+        //     //         // })
+        //     //         // child.material.needsUpdate = true;
+        //     //     })
+        //     // }
+        // })
+        this._scene.add(mesh)
+        this._eventMesh.push(mesh)
         return gltf
     }
 
@@ -301,10 +420,10 @@ export class VRWander {
             let materialTexture = new THREE.MeshBasicMaterial({ map: texture })
             const mesh = new THREE.Mesh(geometry, [material, material, material, material, materialTexture, material])
             mesh.name = item.name;
-            // mesh.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
+            mesh.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
             mesh.scale.set(item.scale.x, item.scale.y, item.scale.z);
             mesh.position.set(item.position.x, item.position.y, item.position.z);
-            mesh.originData = item
+            mesh.odata = item
             this._scene.add(mesh)
             this._eventMesh.push(mesh)
         })

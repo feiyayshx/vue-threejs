@@ -12,6 +12,7 @@
   "dependencies": {
     "camera-controls": "^2.8.3",
     "element-plus": "^2.7.1",
+    "offset": "^0.0.1",
     "pinia": "^2.1.7",
     "three": "^0.163.0",
     "vue": "^3.4.21",
