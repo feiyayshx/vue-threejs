@@ -46,7 +46,7 @@ export const dataImages = [
     name: "丛林小屋",
     desc: "AIGC生成的图片",
     scale: { x: 1, y: 0.45, z: 1 },
-    position: { x: 6.4, y: 1.37, z: 6.94 },
+    position: { x: 6.57, y: 1.88, z: 11.94 },
     rotation: { x: -3.14, y: 0, z: -3.14 },
     type: "picture",
   },
@@ -100,4 +100,16 @@ export const dataImages = [
     rotation: { x: 0, y: 0, z: 0 },
     type: "picture",
   },
+]
+
+export const dataVideos = [
+  {
+    id: "v1",
+    url: "/models/ingames.mp4",
+    name: "games",
+    scale: { x: 1.94, y: 0.43, z: 0.8 },
+    position: { x:6.08, y: 1.37, z: 6.94 },
+    rotation: { x: 0, y: 0, z: 0 },
+    type: "video",
+  }
 ]

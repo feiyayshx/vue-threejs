@@ -16,7 +16,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { VRWander } from "@/components/vr-wander/index";
-import { dataImages } from "./data";
+import { dataImages,dataVideos } from "./data";
 
 const showImageDetail = ref(false)
 const currentImage = ref({
@@ -34,17 +34,17 @@ onMounted(() => {
 
   const vrWander = new VRWander({
     container: document.getElementById("wanderContainer"),
-    debugger: true,
+    debugger: false,
     maxSize: 2,
     movieHight:2,
     cameraOption: {
       position: { x: 6.928, y: 2, z: 0.699 },
       lookAt: { x:-0.028, y:1, z:0 },
     },
-    // onClick: (item) => {
-    //   currentImage.value = item
-    //   showImageDetail.value = true
-    // }
+    onClick: (item) => {
+      // currentImage.value = item
+      // showImageDetail.value = true
+    }
   });
 
   vrWander.loadHall({
@@ -60,6 +60,7 @@ onMounted(() => {
   })
 
   vrWander.loadImages(dataImages)
+  vrWander.loadVideos(dataVideos)
 });
 
 </script>

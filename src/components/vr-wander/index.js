@@ -236,15 +236,24 @@ export class VRWander {
 
             // 因为被点击的元素可能是子元素，所以要溯源，找到父元素的odata
             const odataMesh = this._findParentOdata(mesh);
+            console.log(odataMesh,'onClick')
 
             // 如果点击的是画框，初始化控制器
             if (this._options.debugger && odataMesh && this._transformControls) {
                 this._transformControls.attach(odataMesh);
             }
 
-            // 元素点击事件
-            if (odataMesh && this._options.onClick) {
+            // 元素点击图片事件
+            if (odataMesh?.odata.type==='picture' && this._options.onClick) {
                 this._options.onClick(odataMesh.odata);
+            }
+            // 元素点击视频事件
+            if (odataMesh?.odata.type==='video') {
+                if(odataMesh.odata.video.paused) {
+                    odataMesh.odata.video.play()
+                }else {
+                    odataMesh.odata.video.pause()
+                }
             }
 
             return { position: v3, lookat, mesh };
@@ -419,6 +428,40 @@ export class VRWander {
             const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
             let materialTexture = new THREE.MeshBasicMaterial({ map: texture })
             const mesh = new THREE.Mesh(geometry, [material, material, material, material, materialTexture, material])
+            mesh.name = item.name;
+            mesh.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
+            mesh.scale.set(item.scale.x, item.scale.y, item.scale.z);
+            mesh.position.set(item.position.x, item.position.y, item.position.z);
+            mesh.odata = item
+            this._scene.add(mesh)
+            this._eventMesh.push(mesh)
+        })
+    }
+
+    loadVideos(items) {
+        const { maxSize } = this._options
+        items.forEach(async item => {
+            const video = document.createElement('video')
+            video.src = item.url
+            video.loop = true
+            // video.play()
+            let texture = new THREE.VideoTexture(video)
+            console.log(texture,'videotexture')
+            item.video = video
+            item.width = 2
+            item.height = 4
+            // if (texture.image.width > maxSize) {
+            //     item.width = maxSize;
+            //     item.height = (maxSize / texture.image.width) * texture.image.height;
+            // } else {
+            //     item.height = maxSize;
+            //     item.width = (maxSize / texture.image.height) * texture.image.width;
+            // }
+
+            const geometry = new THREE.BoxGeometry(item.width, item.height, 0.05)
+            const material = new THREE.MeshBasicMaterial({ color: 0xffffff })
+            let materialTexture = new THREE.MeshBasicMaterial({ map: texture })
+            const mesh = new THREE.Mesh(geometry, [material, material, material, material, material,materialTexture])
             mesh.name = item.name;
             mesh.rotation.set(item.rotation.x, item.rotation.y, item.rotation.z);
             mesh.scale.set(item.scale.x, item.scale.y, item.scale.z);
